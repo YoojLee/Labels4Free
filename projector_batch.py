@@ -151,20 +151,12 @@ if __name__ == "__main__":
 
     device = f"cuda:{args.gpu_id}" if args.gpu_id != -1 else 'cpu'
     print(device)
+    torch.cuda.set_device(torch.device(device))
     fix_seed(args.seed)
 
     n_mean_latent = 10000
 
     resize = min(args.size, 256) # 무조건 최대 256으로 resize되는 형태임. (그것보다 큰 사이즈 들어와도 256으로 squeeze됨)
-
-    # transform = transforms.Compose(
-    #     [
-    #         transforms.Resize((resize, resize)),
-    #         #transforms.CenterCrop(resize),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-    #     ]
-    # )
 
     # data loading
     transform = PadTransform(resize)

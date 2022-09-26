@@ -29,6 +29,7 @@ from distributed import (
 )
 from non_leaking import augment, AdaptiveAugment
 
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 def data_sampler(dataset, shuffle, distributed):
     """Returns a data sampler for a dataloader.
@@ -373,7 +374,6 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
 
 
 if __name__ == "__main__":
-    device = "cuda"
 
     parser = argparse.ArgumentParser(description="StyleGAN2 Alpha Network trainer")
 
@@ -498,9 +498,12 @@ if __name__ == "__main__":
         "--random_seed",
         type=int, default=0, help="Random Seed for reproducibility"
     )
+    parser.add_argument("--gpu_id", type=int, default=-1)
 
     args = parser.parse_args()
 
+    device = f"cuda:{args.gpu_id}" if args.gpu_id != -1 else 'cpu'
+    torch.cuda.set_device(torch.device(device))
     fix_seed(args.random_seed)
 
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
