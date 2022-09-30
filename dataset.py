@@ -1,4 +1,5 @@
 import os, glob
+import cv2
 import pickle
 import numpy as np
 from io import BytesIO
@@ -81,7 +82,7 @@ class TestDataset(Dataset):
         
         return img
 
-class CifarVehicleDataSet(Dataset):
+class CifarVehicleDataset(Dataset):
     """
     Cifar-10 Dataset (only vehicle images)
     """
@@ -99,11 +100,13 @@ class CifarVehicleDataSet(Dataset):
         
         self.imgs = []
         self.labels = []
+        self.file_list = []
 
         for f in file_list:
-            imgs, labels = self.filter_labels(f)
+            imgs, labels, files = self.filter_labels(f)
             self.imgs.append(imgs) # 이렇게 들어가면 안되는 게 인덱싱이 안됨.
             self.labels.append(labels)
+            self.file_list.extend(files)
         
         self.imgs = np.vstack(self.imgs).reshape(-1,3,32,32) # make it a 4d-tensor
         self.imgs = self.imgs.transpose(0,2,3,1) # convert to (H,W,C)
@@ -114,6 +117,7 @@ class CifarVehicleDataSet(Dataset):
             indices = np.random.randint(0, len(self.imgs), size=n_downsample)
             self.imgs = self.imgs[indices]
             self.labels = self.labels[indices]
+            self.file_list = [fn for i, fn in enumerate(self.file_list) if i in indices]
     
     def __len__(self):
         return len(self.imgs)
@@ -144,14 +148,29 @@ class CifarVehicleDataSet(Dataset):
         indices = [i for i,f in enumerate(batch['labels']) if f in [1,9]]
         labels = np.array(batch['labels'])[indices][:, None]
         imgs = batch['data'][indices]
+        files = [fn for i, fn in enumerate(batch['filenames']) if i in indices]
         
-        return imgs, labels
+        return imgs, labels, files
+
+    def get_img_with_filename(self, filename):
+        img = self.imgs[self.file_list.index(filename)]
+        print(self.file_list.index(filename))
+        
+        if self.transforms:
+            img = self.transforms(img)
+        
+        return img
+
 
 class PadTransform(object):
     def __init__(self, resize):
         self.resize = resize
 
     def __call__(self, img): # img: PIL Image
+        if isinstance(img, np.ndarray):
+            cv2.resize(img, (256,256), cv2.INTER_LANCZOS4)
+            img = Image.fromarray(img)
+        
         w,h = img.width, img.height
 
         if h > w:
@@ -175,5 +194,5 @@ class PadTransform(object):
         return transform(img)
 
 if __name__ == "__main__":
-    dataset = CifarVehicleDataSet(n_downsample=100)
+    dataset = CifarVehicleDataset(n_downsample=100)
     print(len(dataset))
