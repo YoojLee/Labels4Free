@@ -32,7 +32,7 @@ def load_inputs(ckpt, idx):
 
     return latent, noise
 
-def load_weights(path_g, path_bg, generator, alpha_net):
+def load_weights(path_g, path_bg, generator, alpha_net, device):
     """
     Load weights for generator and alpha networks.
 
@@ -41,9 +41,10 @@ def load_weights(path_g, path_bg, generator, alpha_net):
         path_bg: path to a background generator checkpoint
         generator: A generator object
         alpha_net: An alpha network object
+        device: ID of a given cuda device
     """
-    g_ckpt = torch.load(path_g)
-    bg_ckpt = torch.load(path_bg)
+    g_ckpt = torch.load(path_g, map_location=device)
+    bg_ckpt = torch.load(path_bg, map_location=device)
 
     generator.load_state_dict(g_ckpt['g_ema']) # in-place operation인지 확인
     alpha_net.load_state_dict(bg_ckpt['bg_extractor_ema'])
@@ -75,7 +76,7 @@ def generate_mask(opt):
     bg_extractor_.eval()
 
     if opt.ckpt_generator and opt.ckpt_bg_extractor is not None:
-        g_ema, bg_extractor_ = load_weights(opt.ckpt_generator, opt.ckpt_bg_extractor, g_ema, bg_extractor_)
+        g_ema, bg_extractor_ = load_weights(opt.ckpt_generator, opt.ckpt_bg_extractor, g_ema, bg_extractor_, device)
 
     # latent_noise
     if opt.fuse_noise:
@@ -132,7 +133,14 @@ def generate_mask(opt):
                             nrow=int(opt.batch ** 0.5),
                             normalize=True,
                             value_range=(-1,1)
-                        )    
+                        )
+
+            utils.save_image(
+                            hard_mask,
+                            f"{opt.save_dir}/{str(i).zfill(6)}_mask.png",
+                            nrow=int(opt.batch ** 0.5),
+                            normalize=False
+                        )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Segmentation on Real Images")

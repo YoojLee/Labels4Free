@@ -373,8 +373,6 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
 
 
 if __name__ == "__main__":
-    device = "cuda"
-
     parser = argparse.ArgumentParser(description="StyleGAN2 Alpha Network trainer")
 
     parser.add_argument("path", type=str, help="path to the lmdb dataset")
@@ -511,6 +509,10 @@ if __name__ == "__main__":
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
+        
+    else:
+        device = f"cuda:{args.local_rank}"
+        torch.cuda.set_device(device)
 
     args.latent = 512
     args.n_mlp = 8
