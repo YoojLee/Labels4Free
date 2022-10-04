@@ -1,19 +1,19 @@
 import argparse
 import math
-import os, glob
+import os
+from importlib import import_module
 
 import numpy as np
 import random
 import torch
 from torch import optim
 from torch.nn import functional as F
-from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm
 
 import lpips
 from model_new import Generator
-from dataset import TestDataset, PadTransform
+from dataset import *
 from torch.utils.data import DataLoader
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -96,6 +96,9 @@ if __name__ == "__main__":
         description="Image projector to the generator latent spaces"
     )
     parser.add_argument(
+        "--dataset", type=str, default="TestDataset", help="Select what kind of dataset you will use for projection. The default is TestDataset."
+    )
+    parser.add_argument(
         "--batch", type=int, required=True
     )
     parser.add_argument(
@@ -153,24 +156,23 @@ if __name__ == "__main__":
     if args.gpu_id != -1:
         torch.cuda.set_device(device)
     print(device)
+    torch.cuda.set_device(torch.device(device))
     fix_seed(args.seed)
 
     n_mean_latent = 10000
 
     resize = min(args.size, 256) # 무조건 최대 256으로 resize되는 형태임. (그것보다 큰 사이즈 들어와도 256으로 squeeze됨)
 
-    # transform = transforms.Compose(
-    #     [
-    #         transforms.Resize((resize, resize)),
-    #         #transforms.CenterCrop(resize),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-    #     ]
-    # )
-
     # data loading
     transform = PadTransform(resize)
-    dataset = TestDataset(args.root, transform)
+
+    if args.dataset == "TestDataset":
+        dataset = TestDataset(args.root, transform)
+    elif args.dataset == "CifarVehicleDataset":
+        dataset = CifarVehicleDataset(path=args.root, n_downsample=100, transforms=transform)
+    else:
+        raise ValueError("Invalid Dataset Name. Please check your dataset name and retry.")
+
     dataloader = DataLoader(dataset, batch_size=args.batch, num_workers=4, pin_memory=True)
 
     g_ema = Generator(args.size, 512, 8)
@@ -189,10 +191,11 @@ if __name__ == "__main__":
         net="vgg"
     ).to(device)
 
-    for batch_idx, img in enumerate(dataloader):
+    for batch_idx, data in enumerate(dataloader):
         
         print(f"Batch {batch_idx}")
 
+        img, _ = data
         img = img.to(device)
 
         noises = list(map(lambda x: x.repeat(img.shape[0], 1, 1, 1).normal_(), g_ema.make_noise()))

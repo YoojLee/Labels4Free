@@ -8,6 +8,7 @@ real image를 projection한 후에 학습한 latent_in을 다 load해줌. -> 어
 여러개 동시에 처리 어떻게 해줄지 생각해볼 것. (내일까지)
 """
 import argparse
+from multiprocessing.sharedctypes import Value
 import os
 import torch
 from torchvision import utils
@@ -15,7 +16,8 @@ from model_new import *
 from tqdm import tqdm
 from PIL import Image
 
-from dataset import PadTransform
+from dataset import CifarVehicleDataset, PadTransform
+from importlib import import_module
 
 MIN_RES = {1024:32, 512:16, 256:8}
 N_MEAN_LATENT = 10000
@@ -90,6 +92,9 @@ def generate_mask(opt):
     ckpt = torch.load(opt.ckpt_path)
     n_test = len(ckpt.keys())
 
+    if opt.test_cifar10:
+        dataset = CifarVehicleDataset(opt.root, n_downsample=opt.n_downsample, transforms=transform)
+        
     pbar = tqdm(range(n_test))
     for i in pbar:
         # load latent code and noise
@@ -107,9 +112,18 @@ def generate_mask(opt):
             hard_mask = (alpha_mask > opt.th).float()
             
             alpha_mask = alpha_mask.detach().clone().cpu()
-            image_org = transform(Image.open(list(ckpt.keys())[i])).unsqueeze(0)
+
+            if not opt.test_cifar10:
+                image_org = transform(Image.open(list(ckpt.keys())[i])).unsqueeze(0)
+            else:
+                image_org = dataset.get_img_with_filename(list(ckpt.keys())[i]).unsqueeze(0)
+
             image_new = image_org * hard_mask.cpu()
             image_new = image_new.detach().clone().cpu()
+
+            if opt.test_cifar10:
+                from torchvision import transforms
+                image_new = transforms.Resize((256,256))(image_new)
 
             utils.save_image(
                             image_new,
@@ -146,6 +160,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Segmentation on Real Images")
 
     parser.add_argument("--batch", type=int, default=1)
+    parser.add_argument("--test_cifar10", action="store_true")
+    parser.add_argument("--root", type=str, default="/home/data/Labels4Free/cifar-10-batches-py")
+    parser.add_argument("--n_downsample", type=int, default=-1)
     parser.add_argument("--ckpt_path", type=str, default="./test/proj_results/test_img.pt") # 어떤 식으로 input 받아오느냐에 따라 달라지긴 함.
     parser.add_argument("--save_dir", type=str, default="./test/final_results")
     parser.add_argument("--size", type=int, default=512)
