@@ -552,6 +552,9 @@ class Generator(nn.Module):
 
             out = conv1(out, latent[:, i], noise=noise1)
 
+            if back and i == 1:
+                out *= 0
+
             if i >= self.res_idx[self.size] :
             
                 output_lis.append(out)
