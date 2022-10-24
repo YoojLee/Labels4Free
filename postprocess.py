@@ -16,7 +16,7 @@ class PostProcessor(object):
 
     후처리는 DBSCAN 알고리즘을 사용하여 이미지 내 mask가 여러 영역으로 분리 가능한지? 분리 가능하다면 outlier segmentation mask로 간주하여, 삭제.
     """
-    def __init__(self, root, eps, min_samples):
+    def __init__(self, root, eps, min_samples, masking_val):
         self.root = root
         self.mask_dir = sorted(glob.glob(root+"/*_mask.png")+glob.glob(root+"/*_mask.jpg"))
         self.img_dir = sorted(glob.glob(root+"/*_origin.png")+glob.glob(root+"/*_origin.jpg"))
@@ -25,6 +25,7 @@ class PostProcessor(object):
         assert len(self.mask_dir) > 0, f"Nothing detected in the given root '{root}'."
 
         self.dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+        self.masking_val = masking_val
 
     def get_cluster(self, mask):
         """
@@ -48,7 +49,7 @@ class PostProcessor(object):
         img = cv2.imread(self.img_dir[idx])
         
         # convert a mask array into a dataframe which contains coords of non-masking area.
-        mask_df = pd.DataFrame(zip(*np.where(mask==255)))
+        mask_df = pd.DataFrame(zip(*np.where(mask==self.masking_val)))
         clusters = self.get_cluster(mask_df)
         n_clusters = len(set(clusters))
 
@@ -86,9 +87,10 @@ if __name__ == "__main__":
     parser.add_argument("--root", required=True, type=str, help="A data root to postprocess.")
     parser.add_argument("--eps", type=float, default=20.0, help="A value of epsilon for a DBSCAN.")
     parser.add_argument("--min_samples", type=int, default=1200, help="Number of minimum samples for a DBSCAN.")
+    parser.add_argument("--masking_val", type=int, default=255)
 
     opt = parser.parse_args()
 
-    post_processor = PostProcessor(opt.root, opt.eps, opt.min_samples)
+    post_processor = PostProcessor(opt.root, opt.eps, opt.min_samples, opt.masking_val)
     post_processor.postprocess()
 
