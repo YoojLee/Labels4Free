@@ -25,17 +25,17 @@ def generate(args, g_ema, device, mean_latent):
                 f"sample/{str(i).zfill(6)}.png",
                 nrow=1,
                 normalize=True,
-                range=(-1, 1),
+                value_range=(-1, 1),
             )
 
 
 if __name__ == "__main__":
-    device = "cuda"
+    device = "cuda:0"
 
     parser = argparse.ArgumentParser(description="Generate samples from the generator")
 
     parser.add_argument(
-        "--size", type=int, default=1024, help="output image size of the generator"
+        "--size", type=int, default=256, help="output image size of the generator"
     )
     parser.add_argument(
         "--sample",
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pics", type=int, default=20, help="number of images to be generated"
     )
-    parser.add_argument("--truncation", type=float, default=1, help="truncation ratio")
+    parser.add_argument("--truncation", type=float, default=0.5, help="truncation ratio")
     parser.add_argument(
         "--truncation_mean",
         type=int,
@@ -56,13 +56,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ckpt",
         type=str,
-        default="stylegan2-ffhq-config-f.pt",
+        default="/home/workspace/checkpoint/flowers-256-slim-001212.pt",
         help="path to the model checkpoint",
     )
     parser.add_argument(
         "--channel_multiplier",
         type=int,
-        default=2,
+        default=1,
         help="channel multiplier of the generator. config-f = 2, else = 1",
     )
 
