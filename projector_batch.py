@@ -99,6 +99,9 @@ if __name__ == "__main__":
         "--dataset", type=str, default="TestDataset", help="Select what kind of dataset you will use for projection. The default is TestDataset."
     )
     parser.add_argument(
+        "--backbone", type=str, default="vgg", help="a backbone network for psp encoder"
+    )
+    parser.add_argument(
         "--batch", type=int, required=True
     )
     parser.add_argument(
@@ -106,6 +109,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--size", type=int, default=256, help="output image sizes of the generator"
+    )
+    parser.add_argument(
+        "--channel_multiplier", type=int, default=2, help="Set to 2 with config-f. Otherwise, set to 1."
     )
     parser.add_argument(
         "--lr_rampup",
@@ -175,7 +181,7 @@ if __name__ == "__main__":
 
     dataloader = DataLoader(dataset, batch_size=args.batch, num_workers=4, pin_memory=True)
 
-    g_ema = Generator(args.size, 512, 8)
+    g_ema = Generator(args.size, 512, 8, channel_multiplier=args.channel_multiplier)
     g_ema.load_state_dict(torch.load(args.ckpt)["g_ema"], strict=False)
     g_ema.eval()
     g_ema = g_ema.to(device)
@@ -188,14 +194,14 @@ if __name__ == "__main__":
         latent_std = ((latent_out - latent_mean).pow(2).sum() / n_mean_latent) ** 0.5
 
     percept = lpips.LPIPS(
-        net="vgg"
+        net=args.backbone
     ).to(device)
 
     for batch_idx, data in enumerate(dataloader):
         
         print(f"Batch {batch_idx}")
 
-        img, _ = data
+        img = data
         img = img.to(device)
 
         noises = list(map(lambda x: x.repeat(img.shape[0], 1, 1, 1).normal_(), g_ema.make_noise()))
