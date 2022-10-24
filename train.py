@@ -235,7 +235,6 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
 
         discriminator.zero_grad()
         d_loss.backward()
-        d_optim.step()
 
         if args.augment and args.augment_p == 0:
             ada_aug_p = ada_augment.tune(real_pred)
@@ -250,6 +249,9 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
             discriminator.zero_grad()
             (args.r1 / 2 * r1_loss * args.d_reg_every + 1.0 * real_pred[0]).backward()
 
+            d_optim.step()
+
+        else:
             d_optim.step()
 
         loss_dict["r1"] = r1_loss
@@ -314,8 +316,10 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
                     sample_bg, __ = g_ema([sample_z2], truncation=0.5, truncation_latent=mean_latent, back = True)
               
                     alpha_mask = bg_extractor(_)
+                    hard_mask = (alpha_mask > args.th).float()
     
                     image_new = sample * alpha_mask + (1 - alpha_mask) * sample_bg
+                    image_new2 = sample * hard_mask
 
                     if args.save_image:
                         utils.save_image(
@@ -351,6 +355,7 @@ def train(args, loader, generator, bg_extractor, discriminator, g_optim, d_optim
                         wandb.log(
                             {
                                 "Composite": wandb.Image(utils.make_grid(image_new, nrow=int(args.n_sample ** 0.5), normalize=True, value_range=(-1, 1)).permute(1,2,0).cpu().numpy()),
+                                "Composite_hard": wandb.Image(utils.make_grid(image_new2, nrow=int(args.n_sample ** 0.5), normalize=True, value_range=(-1,1)).permute(1,2,0).cpu().numpy()),
                                 "Alpha Mask": wandb.Image(utils.make_grid(alpha_mask, nrow=int(args.n_sample ** 0.5), normalize=False).permute(1,2,0).cpu().numpy()),
                                 "Original Sample": wandb.Image(utils.make_grid(sample, nrow=int(args.n_sample ** 0.5), normalize=True, value_range=(-1, 1)).permute(1,2,0).cpu().numpy()),
                                 "Generated Background": wandb.Image(utils.make_grid(sample_bg, nrow=int(args.n_sample ** 0.5), normalize=True, value_range=(-1, 1)).permute(1,2,0).cpu().numpy())
@@ -392,6 +397,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--size", type=int, default=256, help="image sizes for the model"
+    )
+    parser.add_argument(
+        "--th", type=float, default=0.5, help="threshold to generate a hard mask"
     )
     parser.add_argument(
         "--reproduce_model", action="store_true", help="reproduce model in the paper"
@@ -496,14 +504,12 @@ if __name__ == "__main__":
     )    
     parser.add_argument(
         "--random_seed",
-        type=int, default=0, help="Random Seed for reproducibility"
+        type=int, default=42, help="Random Seed for reproducibility"
     )
     parser.add_argument("--gpu_id", type=int, default=-1)
 
     args = parser.parse_args()
 
-    device = f"cuda:{args.gpu_id}" if args.gpu_id != -1 else 'cpu'
-    torch.cuda.set_device(torch.device(device))
     fix_seed(args.random_seed)
 
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -515,7 +521,7 @@ if __name__ == "__main__":
         synchronize()
         
     else:
-        device = f"cuda:{args.local_rank}"
+        device = f"cuda:{args.gpu_id}"
         torch.cuda.set_device(device)
 
     args.latent = 512
@@ -594,6 +600,8 @@ if __name__ == "__main__":
             print("Discriminator Loaded.")
 
         if args.pretrained_alphanet:
+            if 'flowers' in args.ckpt:
+                ckpt = torch.load("/home/workspace/checkpoint/LSUN_Car.pt")
             alphanet_model.load_state_dict(ckpt['bg_extractor_ema'])
             ema_bg.load_state_dict(ckpt['bg_extractor_ema'])
             print("AlphaNet Loaded.")
@@ -631,7 +639,7 @@ if __name__ == "__main__":
 
     transform = transforms.Compose(
         [   
-            transforms.Resize((args.size, args.size)),
+            transforms.CenterCrop(args.size),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
