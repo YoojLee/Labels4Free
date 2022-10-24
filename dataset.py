@@ -65,10 +65,17 @@ class TestDataset(Dataset):
     """
     Dataset for a real image projection.
     """
-    def __init__(self, root, transform):
+    def __init__(self, root, transform, nested_dir=True):
         super().__init__()
-
-        self.file_list = sorted(glob.glob(root+"/*.jpg")+glob.glob(root+"/*.jfif")+glob.glob(root+"/*.png"))
+        if not nested_dir:
+            self.file_list = sorted(glob.glob(root+"/*.jpg")+glob.glob(root+"/*.jfif")+glob.glob(root+"/*.png"))
+        else:
+            self.file_list = []
+            for p in glob.glob(root+"*"):
+                self.file_list.extend(glob.glob(p+"/*.jpg")+glob.glob(p+"/*.jfif")+glob.glob(p+"/*.png"))
+            
+            self.file_list.sort()            
+            
         self.transform = transform
 
     def __len__(self):
